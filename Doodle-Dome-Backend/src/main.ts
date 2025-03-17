@@ -62,7 +62,8 @@ app.use(express.json());
       registrationRepository,
       competitionRepository,
       studentRepository,
-      schoolRepository
+      schoolRepository,
+      userRepository
     );
     
     // Create default admin user if it doesn't exist
@@ -107,6 +108,20 @@ app.use(express.json());
     app.get('/api/students/:studentId/registrations', authenticate, registrationController.getStudentRegistrations);
     app.post('/api/registrations', authenticate, registrationController.registerStudent);
     app.put('/api/registrations/:id/cancel', authenticate, registrationController.cancelRegistration);
+    
+    // Competition enrollment routes
+    app.get(
+      '/api/competitions/:competitionId/enrollments',
+      authenticate,
+      authorizeAdmin,
+      registrationController.getCompetitionEnrollments
+    );
+
+    app.get(
+      '/api/competitions/:competitionId/school-enrollments',
+      authenticate,
+      registrationController.getSchoolCompetitionEnrollments
+    );
     
     // Global error handler
     app.use(errorHandler);

@@ -6,13 +6,15 @@ import { ISchoolRepository } from '../../core/domain/repositories/ISchoolReposit
 import { Registration, RegistrationStatus } from '../../core/domain/entities/Registration';
 import { AuthRequest } from '../middlewares/auth-middleware';
 import { UserType } from '../../core/domain/entities/User';
+import { IUserRepository } from '../../core/domain/repositories/IUserRepository';
 
 export class RegistrationController {
   constructor(
     private registrationRepository: IRegistrationRepository,
     private competitionRepository: ICompetitionRepository,
     private studentRepository: IStudentRepository,
-    private schoolRepository: ISchoolRepository
+    private schoolRepository: ISchoolRepository,
+    private userRepository: IUserRepository
   ) {}
 
   // Get all registrations for a competition
@@ -212,6 +214,122 @@ export class RegistrationController {
       } else {
         res.status(400).json({ message: 'Failed to cancel registration' });
       }
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // Get all students enrolled in a competition (Admin view)
+  getCompetitionEnrollments = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const competitionId = parseInt(req.params.competitionId);
+
+      // Verify competition exists
+      const competition = await this.competitionRepository.findById(competitionId);
+      if (!competition) {
+        res.status(404).json({ message: 'Competition not found' });
+        return;
+      }
+
+      // Only admin can see all enrollments
+      if (req.user?.userType !== UserType.ADMIN) {
+        res.status(403).json({ message: 'Admin access required' });
+        return;
+      }
+
+      // Get all registrations for this competition
+      const registrations = await this.registrationRepository.findByCompetitionId(competitionId);
+
+      // Enhance registration data with student and user details
+      const enhancedRegistrations = await Promise.all(
+        registrations.map(async (registration) => {
+          const student = await this.studentRepository.findById(registration.studentId);
+          if (!student) return null;
+
+          const user = await this.userRepository.findById(student.userId);
+          if (!user) return null;
+
+          return {
+            registrationId: registration.id,
+            registrationDate: registration.registrationDate,
+            status: registration.status,
+            student: {
+              id: student.id,
+              name: user.name,
+              email: user.email,
+              grade: student.grade,
+              age: student.age,
+              schoolId: student.schoolId
+            }
+          };
+        })
+      );
+
+      // Filter out null values (in case some students were deleted)
+      const validRegistrations = enhancedRegistrations.filter(reg => reg !== null);
+
+      res.json(validRegistrations);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // Get school's students enrolled in a competition (School view)
+  getSchoolCompetitionEnrollments = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const competitionId = parseInt(req.params.competitionId);
+
+      // Verify competition exists
+      const competition = await this.competitionRepository.findById(competitionId);
+      if (!competition) {
+        res.status(404).json({ message: 'Competition not found' });
+        return;
+      }
+
+      // Only school users can access this endpoint
+      if (req.user?.userType !== UserType.SCHOOL) {
+        res.status(403).json({ message: 'School access required' });
+        return;
+      }
+
+      // Get the school associated with the logged-in user
+      const school = await this.schoolRepository.findByUserId(req.user.userId);
+      if (!school) {
+        res.status(404).json({ message: 'School profile not found' });
+        return;
+      }
+
+      // Get all registrations for this competition
+      const registrations = await this.registrationRepository.findByCompetitionId(competitionId);
+
+      // Filter and enhance registration data for school's students only
+      const enhancedRegistrations = await Promise.all(
+        registrations.map(async (registration) => {
+          const student = await this.studentRepository.findById(registration.studentId);
+          if (!student || student.schoolId !== school.id) return null;
+
+          const user = await this.userRepository.findById(student.userId);
+          if (!user) return null;
+
+          return {
+            registrationId: registration.id,
+            registrationDate: registration.registrationDate,
+            status: registration.status,
+            student: {
+              id: student.id,
+              name: user.name,
+              email: user.email,
+              grade: student.grade,
+              age: student.age
+            }
+          };
+        })
+      );
+
+      // Filter out null values and students from other schools
+      const validRegistrations = enhancedRegistrations.filter(reg => reg !== null);
+
+      res.json(validRegistrations);
     } catch (error) {
       next(error);
     }
