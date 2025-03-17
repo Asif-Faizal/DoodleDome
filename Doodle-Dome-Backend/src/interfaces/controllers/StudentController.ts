@@ -15,17 +15,34 @@ export class StudentController {
     private schoolRepository: ISchoolRepository
   ) {}
 
-  // Get all students
+  // Get all students with user details
   getAllStudents = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const students = await this.studentRepository.findAll();
-      res.json(students);
+      
+      // Fetch related user information
+      const connection = getConnection();
+      const userRepository = connection.getRepository('users');
+      
+      // Enhance student data with user information
+      const enhancedStudents = await Promise.all(
+        students.map(async (student) => {
+          const user = await userRepository.findOne({ where: { id: student.userId } });
+          return {
+            ...student,
+            name: user?.name,
+            email: user?.email
+          };
+        })
+      );
+      
+      res.json(enhancedStudents);
     } catch (error) {
       next(error);
     }
   };
 
-  // Get students by school ID
+  // Get students by school ID with user details
   getStudentsBySchool = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const schoolId = parseInt(req.params.schoolId);
@@ -40,13 +57,30 @@ export class StudentController {
       }
       
       const students = await this.studentRepository.findBySchoolId(schoolId);
-      res.json(students);
+      
+      // Fetch related user information
+      const connection = getConnection();
+      const userRepository = connection.getRepository('users');
+      
+      // Enhance student data with user information
+      const enhancedStudents = await Promise.all(
+        students.map(async (student) => {
+          const user = await userRepository.findOne({ where: { id: student.userId } });
+          return {
+            ...student,
+            name: user?.name,
+            email: user?.email
+          };
+        })
+      );
+      
+      res.json(enhancedStudents);
     } catch (error) {
       next(error);
     }
   };
 
-  // Get student by ID
+  // Get student by ID with user details
   getStudentById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const studentId = parseInt(req.params.id);
@@ -57,7 +91,19 @@ export class StudentController {
         return;
       }
       
-      res.json(student);
+      // Fetch related user information
+      const connection = getConnection();
+      const userRepository = connection.getRepository('users');
+      const user = await userRepository.findOne({ where: { id: student.userId } });
+      
+      // Combine student and user data
+      const enhancedStudent = {
+        ...student,
+        name: user?.name,
+        email: user?.email
+      };
+      
+      res.json(enhancedStudent);
     } catch (error) {
       next(error);
     }
