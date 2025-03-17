@@ -3,6 +3,8 @@ import { config } from '../config/env';
 import { UserEntity } from '../entities/User.entity';
 import { SchoolEntity } from '../entities/School.entity';
 import { StudentEntity } from '../entities/Student.entity';
+import { CompetitionEntity } from '../entities/Competition.entity';
+import { RegistrationEntity } from '../entities/Registration.entity';
 
 export async function connectToDatabase(): Promise<Connection> {
   try {
@@ -13,7 +15,13 @@ export async function connectToDatabase(): Promise<Connection> {
       username: config.database.username,
       password: config.database.password,
       database: config.database.name,
-      entities: [UserEntity, SchoolEntity, StudentEntity],
+      entities: [
+        UserEntity, 
+        SchoolEntity, 
+        StudentEntity, 
+        CompetitionEntity, 
+        RegistrationEntity
+      ],
       synchronize: true, // Set to false in production
       logging: true,
     });

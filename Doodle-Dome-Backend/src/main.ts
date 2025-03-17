@@ -12,6 +12,10 @@ import { UserController } from './interfaces/controllers/UserController';
 import { SchoolController } from './interfaces/controllers/SchoolController';
 import { StudentController } from './interfaces/controllers/StudentController';
 import { authenticate, authorizeAdmin, authorizeSchool } from './interfaces/middlewares/auth-middleware';
+import { CompetitionRepository } from './infrastructure/repositories/CompetitionRepository';
+import { RegistrationRepository } from './infrastructure/repositories/RegistrationRepository';
+import { CompetitionController } from './interfaces/controllers/CompetitionController';
+import { RegistrationController } from './interfaces/controllers/RegistrationController';
 
 const app = express();
 
@@ -29,6 +33,8 @@ app.use(express.json());
     const userRepository = new UserRepository(connection);
     const schoolRepository = new SchoolRepository(connection);
     const studentRepository = new StudentRepository(connection);
+    const competitionRepository = new CompetitionRepository(connection);
+    const registrationRepository = new RegistrationRepository(connection);
     
     // Initialize services
     const tokenService = new TokenService();
@@ -44,6 +50,17 @@ app.use(express.json());
     const schoolController = new SchoolController(schoolRepository);
     
     const studentController = new StudentController(
+      studentRepository,
+      schoolRepository
+    );
+    
+    const competitionController = new CompetitionController(
+      competitionRepository
+    );
+    
+    const registrationController = new RegistrationController(
+      registrationRepository,
+      competitionRepository,
       studentRepository,
       schoolRepository
     );
@@ -76,6 +93,20 @@ app.use(express.json());
     
     // Let schools create students directly
     app.post('/api/students', authenticate, authorizeSchool, studentController.createStudent);
+    
+    // Competition routes
+    app.get('/api/competitions', authenticate, competitionController.getAllCompetitions);
+    app.get('/api/competitions/upcoming', authenticate, competitionController.getUpcomingCompetitions);
+    app.get('/api/competitions/:id', authenticate, competitionController.getCompetitionById);
+    app.post('/api/competitions', authenticate, authorizeAdmin, competitionController.createCompetition);
+    app.put('/api/competitions/:id', authenticate, authorizeAdmin, competitionController.updateCompetition);
+    app.delete('/api/competitions/:id', authenticate, authorizeAdmin, competitionController.deleteCompetition);
+    
+    // Registration routes
+    app.get('/api/competitions/:competitionId/registrations', authenticate, registrationController.getRegistrationsByCompetition);
+    app.get('/api/students/:studentId/registrations', authenticate, registrationController.getStudentRegistrations);
+    app.post('/api/registrations', authenticate, registrationController.registerStudent);
+    app.put('/api/registrations/:id/cancel', authenticate, registrationController.cancelRegistration);
     
     // Global error handler
     app.use(errorHandler);

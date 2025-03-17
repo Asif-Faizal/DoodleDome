@@ -209,10 +209,17 @@ export class StudentController {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
       
+      // Debug: Log password details (but never in production!)
+      console.log(`Original password: ${password}`);
+      console.log(`Hashed password: ${hashedPassword}`);
+      
       // Create user
       const user = new User(email, hashedPassword, name, UserType.STUDENT);
       const userRepository = new UserRepository(getConnection());
       const createdUser = await userRepository.create(user);
+      
+      // Debug: Log created user
+      console.log(`Created user ID: ${createdUser.id}`);
       
       // Create student
       const student = new Student(createdUser.id!, schoolId, grade, age);
@@ -224,6 +231,7 @@ export class StudentController {
         studentId: createdStudent.id
       });
     } catch (error) {
+      console.error('Error creating student:', error);
       next(error);
     }
   };

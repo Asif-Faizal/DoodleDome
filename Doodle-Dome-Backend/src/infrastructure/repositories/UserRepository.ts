@@ -3,6 +3,7 @@ import { User, UserType } from '../../core/domain/entities/User';
 import { IUserRepository } from '../../core/domain/repositories/IUserRepository';
 import { UserEntity } from '../entities/User.entity';
 import bcrypt from 'bcrypt';
+import { getConnection } from 'typeorm';
 
 export class UserRepository implements IUserRepository {
   private repository: Repository<UserEntity>;
@@ -19,10 +20,36 @@ export class UserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const userEntity = await this.repository.findOne({ where: { email } });
-    if (!userEntity) return null;
-    
-    return this.mapToUser(userEntity);
+    try {
+      // Debug: Log the query parameters
+      console.log(`Finding user by email: ${email}`);
+      
+      const entity = await this.repository.findOne({ 
+        where: { email },
+        select: ['id', 'email', 'password', 'name', 'userType', 'createdAt', 'updatedAt'] 
+      });
+      
+      if (!entity) {
+        console.log(`No user found with email: ${email}`);
+        return null;
+      }
+      
+      // Debug: Log retrieved entity (without password)
+      console.log(`Found user: ID=${entity.id}, type=${entity.userType}`);
+      
+      return new User(
+        entity.email,
+        entity.password,
+        entity.name,
+        entity.userType as UserType,
+        entity.id,
+        entity.createdAt,
+        entity.updatedAt
+      );
+    } catch (error) {
+      console.error('Error finding user by email:', error);
+      throw error;
+    }
   }
 
   async findAll(): Promise<User[]> {
@@ -103,6 +130,31 @@ export class UserRepository implements IUserRepository {
     } catch (error) {
       console.error('Error checking/creating admin user:', error);
       // Don't throw here to prevent app startup failure
+    }
+  }
+
+  async findByEmailRaw(email: string): Promise<any> {
+    try {
+      console.log(`Finding raw user by email: ${email}`);
+      
+      // Using getRepository to get raw entity from database
+      const connection = getConnection();
+      const rawRepo = connection.getRepository('users');
+      
+      const entity = await rawRepo.findOne({ 
+        where: { email }
+      });
+      
+      if (!entity) {
+        console.log(`No user found with email: ${email}`);
+        return null;
+      }
+      
+      console.log(`Found raw user entity, password hash length: ${entity.password.length}`);
+      return entity;
+    } catch (error) {
+      console.error('Error finding raw user by email:', error);
+      throw error;
     }
   }
 
