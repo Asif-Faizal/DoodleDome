@@ -4,6 +4,10 @@ import { ISchoolRepository } from '../../core/domain/repositories/ISchoolReposit
 import { Student } from '../../core/domain/entities/Student';
 import { AuthRequest } from '../middlewares/auth-middleware';
 import { UserType } from '../../core/domain/entities/User';
+import bcrypt from 'bcrypt';
+import { UserRepository } from '../../infrastructure/repositories/UserRepository';
+import { getConnection } from '../../infrastructure/database/database-connection';
+import { User } from '../../core/domain/entities/User';
 
 export class StudentController {
   constructor(
@@ -127,6 +131,52 @@ export class StudentController {
       } else {
         res.status(404).json({ message: 'Student not found' });
       }
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createStudent = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const authReq = req as AuthRequest;
+      const { email, password, name, grade, age } = req.body;
+      let { schoolId } = req.body;
+      
+      // If school user is creating a student, force using their own school ID
+      if (authReq.user?.userType === UserType.SCHOOL) {
+        const school = await this.schoolRepository.findByUserId(authReq.user.userId);
+        if (!school) {
+          res.status(404).json({ error: 'School profile not found' });
+          return;
+        }
+        schoolId = school.id;
+      } else {
+        // For admin creating a student, validate the provided school ID
+        const school = await this.schoolRepository.findById(schoolId);
+        if (!school) {
+          res.status(404).json({ error: `School with ID ${schoolId} not found` });
+          return;
+        }
+      }
+      
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      
+      // Create user
+      const user = new User(email, hashedPassword, name, UserType.STUDENT);
+      const userRepository = new UserRepository(getConnection());
+      const createdUser = await userRepository.create(user);
+      
+      // Create student
+      const student = new Student(createdUser.id!, schoolId, grade, age);
+      const createdStudent = await this.studentRepository.create(student);
+      
+      res.status(201).json({
+        message: 'Student created successfully',
+        userId: createdUser.id,
+        studentId: createdStudent.id
+      });
     } catch (error) {
       next(error);
     }

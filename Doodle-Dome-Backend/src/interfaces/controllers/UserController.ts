@@ -93,43 +93,33 @@ export class UserController {
   };
 
   // Create student user (admin or school only)
-  createStudent = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  createStudent = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email, password, name, schoolId, grade, age } = req.body;
       
-      if (!email || !password || !name || !schoolId) {
-        res.status(400).json({ message: 'Missing required fields' });
+      // Validate school exists before proceeding
+      const school = await this.schoolRepository.findById(schoolId);
+      if (!school) {
+        res.status(404).json({ error: `School with ID ${schoolId} not found` });
         return;
       }
       
-      // If school is creating student, verify school owns the schoolId
-      if (req.user?.userType === UserType.SCHOOL) {
-        const school = await this.schoolRepository.findByUserId(req.user.userId);
-        if (!school || school.id !== parseInt(schoolId)) {
-          res.status(403).json({ message: 'Not authorized to add students to this school' });
-          return;
-        }
-      }
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
       
-      // Check if email is already in use
-      const existingUser = await this.userRepository.findByEmail(email);
+      // Create user
+      const user = new User(email, hashedPassword, name, UserType.STUDENT);
+      const createdUser = await this.userRepository.create(user);
       
-      if (existingUser) {
-        res.status(409).json({ message: 'Email already in use' });
-        return;
-      }
+      // Create student
+      const student = new Student(createdUser.id!, schoolId, grade, age);
+      const createdStudent = await this.studentRepository.create(student);
       
-      // Create user with student role
-      const user = new User(email, password, name, UserType.STUDENT);
-      const savedUser = await this.userRepository.create(user);
-      
-      // Create student profile
-      const student = new Student(savedUser.id!, parseInt(schoolId), grade, age ? parseInt(age) : undefined);
-      await this.studentRepository.create(student);
-      
-      res.status(201).json({ 
+      res.status(201).json({
         message: 'Student created successfully',
-        userId: savedUser.id 
+        userId: createdUser.id,
+        studentId: createdStudent.id
       });
     } catch (error) {
       next(error);

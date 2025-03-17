@@ -11,7 +11,7 @@ import { TokenService } from './infrastructure/security/token-service';
 import { UserController } from './interfaces/controllers/UserController';
 import { SchoolController } from './interfaces/controllers/SchoolController';
 import { StudentController } from './interfaces/controllers/StudentController';
-import { authenticate, authorizeAdmin } from './interfaces/middlewares/auth-middleware';
+import { authenticate, authorizeAdmin, authorizeSchool } from './interfaces/middlewares/auth-middleware';
 
 const app = express();
 
@@ -69,10 +69,13 @@ app.use(express.json());
     
     // Student routes
     app.get('/api/students', authenticate, authorizeAdmin, studentController.getAllStudents);
-    app.get('/api/students/school/:schoolId', authenticate, studentController.getStudentsBySchool);
-    app.get('/api/students/:id', authenticate, studentController.getStudentById);
-    app.put('/api/students/:id', authenticate, studentController.updateStudent);
-    app.delete('/api/students/:id', authenticate, studentController.deleteStudent);
+    app.get('/api/students/school/:schoolId', authenticate, authorizeSchool, studentController.getStudentsBySchool);
+    app.get('/api/students/:id', authenticate, authorizeSchool, studentController.getStudentById);
+    app.put('/api/students/:id', authenticate, authorizeSchool, studentController.updateStudent);
+    app.delete('/api/students/:id', authenticate, authorizeSchool, studentController.deleteStudent);
+    
+    // Let schools create students directly
+    app.post('/api/students', authenticate, authorizeSchool, studentController.createStudent);
     
     // Global error handler
     app.use(errorHandler);

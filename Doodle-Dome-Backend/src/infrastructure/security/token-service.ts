@@ -18,7 +18,7 @@ export class TokenService {
 
     const secretKey = Buffer.from(config.jwt.secret as string, 'utf-8');
     const options: SignOptions = {
-      expiresIn: config.jwt.expiresIn ? parseInt(config.jwt.expiresIn) : 24
+      expiresIn: 24 * 60 * 60 * 1000
     };
 
     return jwt.sign(payload, secretKey, options);
